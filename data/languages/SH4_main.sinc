@@ -1,0 +1,112 @@
+# sleigh specification file for SH4 (SH4-1xx)
+
+define endian=$(ENDIAN);
+
+define alignment=2;
+
+
+ 
+define space ram type=ram_space size=4 default;
+define space register type=register_space size=4;
+
+# General Registers
+define register offset=0 size=4 [R0  R1  R2  R3  R4  R5  R6  R7 
+                                 R8  R9  R10 R11 R12 R13 R14 R15 ];
+
+# Floating-point registers
+define register offset=0x1000 size=4 [ FR0  FR1  FR2  FR3  FR4  FR5 
+								  FR6  FR7  FR8  FR9  FR10 FR11
+								  FR12 FR13 FR14 FR15 XF0  XF1
+								  XF2  XF3  XF4  XF5  XF6  XF7
+								  XF8  XF9  XF10 XF11 XF12 XF13
+								  XF14 XF15 ];
+
+# Control Registers
+define register offset=0x2000 size=4 [ SR  GBR SSR SPC SGR DBR VBR ];
+
+# TODO: Seems nobody else use bitrange
+define bitrange MD = SR[0, 1];
+
+# System Registers
+define register offset=0x2100 size=4 [ MACH MACL PR FPUL PC FPSCR  ];
+
+
+
+ define token SH4Instructions(16)
+ 	Rn    =  ( 8, 11)  # RN on the first 4 bits
+ 	Rn2   =  ( 4,  7)
+ 	Rm    =  ( 8, 11)  
+ 	Rm2   =  ( 4,  7)   
+ 	imm2  =  ( 4,  7)  
+ 	disp4 =  ( 0,  3)  
+ 	disp8 =  ( 0,  7)  # 8b
+ 	imm8  =  ( 0,  7)  # 8b
+	quad3 =  ( 0,  3)
+	quad2 =  ( 4,  7)
+    quad1 =  ( 8, 11)
+    quad0 =  (12, 15)
+    mode  =  ( 2,  3)
+    msize =  ( 0,  1)
+    mode1 =  ( 2,  3)
+    msize2=  ( 0,  1)
+;
+
+# CHECK OUT THE CASE OF STC.L, F* (n * m of 3 bit)
+
+attach variables [ Rn Rm Rm2 ] [R0  R1  R2  R3  R4  R5  R6  R7 
+                                 R8  R9  R10 R11 R12 R13 R14 R15 ];
+
+#attach variables FRn [ 	FR0  FR1  FR2  FR3  FR4  FR5 
+#					   	FR6  FR7  FR8  FR9  FR10 FR11
+#						FR12 FR13 FR14 FR15];
+
+#attach variables XFn [	XF0  XF1  XF2   XF3  XF4  XF5  XF6  XF7
+#						XF8  XF9  XF10 XF11 XF12 XF13 XF14 XF15  ];
+
+
+#RN: Rn is Rn				{ export Rn;   }
+
+SZ: "B" is msize=0 { }
+SZ: "W" is msize=1 { }
+SZ: "L" is msize=2 { }
+
+SZ2: "B" is msize2 = 0 { }
+SZ2: "W" is msize2 = 1 { }
+SZ2: "L" is msize2 = 2 { }
+
+#### Fixed Point Transfer Instructions ####
+
+:MOV      imm8, Rn			is quad0=0xE & imm8 & Rn { Rn = imm8; }
+#:MOV.W	@(disp8, PC), RN	is quad0=9 & disp8 & Rn { }
+#:MOV.L  @(disp8, PC), RN   	is quad0=0xd { }
+:MOV	  Rm2, Rn			 is quad0=6 & quad3=3 & Rm2 & Rn   { Rn = Rm2; }
+:MOV.^SZ  Rm2, @Rn 			 is quad0=2 & mode=0  & Rm2 & Rn & SZ { Rn = Rm2;}
+#:MOV.^SZ  @Rm2, Rn           is quad0=6 & mode=0  & Rm2 & Rn & SZ { }
+#:MOV.^SZ  Rm2, @-Rn          is quad0=2 & mode=1  & Rm2 & Rn & SZ { }
+#:MOV.^SZ  @Rm2+, Rn          is quad0=6 & mode=1  & Rm2 & Rn & SZ { }
+#:MOV.B    0, @(disp4, Rn2) 	 is quad0=8 & quad1=0 & disp4 & Rn2 { }
+#:MOV.W    0, @(disp4, Rn2) 	 is quad0=8 & quad1=1 & disp4 & Rn2 { }
+#:MOV.L	  Rm2, @(disp4, Rn)  is quad0=1 & disp4 & Rm2 & Rn { }
+#:MOV.B    @(disp4, Rm2), R0  is quad0=8 & quad1=4 & Rm2 & disp4 & R0 { } 
+#:MOV.B    @(disp4, Rm2), R0  is quad0=8 & quad1=5 & Rm2 & disp4 & R0 { } 
+#:MOV.L    @(disp4, Rm2), Rn  is quad0=5 & disp4 & Rm2 & Rn { }
+#:MOV.^SZ  @Rm2, @(R0, Rn) 	 is quad0=0 & mode=1 & Rm2 & R0 & Rn  & SZ { }
+#:MOV.^SZ  @(R0, @Rm2), Rn 	 is quad0=0 & mode=3 & Rm2 & R0 & Rn  & SZ { }
+#
+#:MOV.^SZ2 R0, @(disp4, GBR)  is quad0=0xC & mode1=0 & SZ2 & R0 & disp4 & GBR { }
+#:MOV.^SZ2 @(disp4, GBR),R0   is quad0=0xC & mode1=1 & SZ2 & R0 & disp4 & GBR { }
+## :MOVA	  @(disp4, PC), R10  is quad0=C & quad1=7 & disp4 & PC & R0 { }
+#:MOVT     Rn 				 is quad0=0 & quad2=2 & quad3=9 & Rn { }
+#:SWAP.B   Rm2, Rn            is quad0=6 & quad3=8 & Rm2 & Rn  { }
+#:SWAP.W   Rm2, Rn            is quad0=6 & quad3=9 & Rm2 & Rn  { }
+#:XTRCT    Rm2, Rn            is quad0=2 & quad3=0xD & Rm2 & Rn { }
+
+
+
+
+
+ 
+# Arithmetic operation instructions 
+
+
+
