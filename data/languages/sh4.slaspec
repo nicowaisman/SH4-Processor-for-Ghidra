@@ -36,13 +36,21 @@ define context contextreg
   assume8bitIOSpace		= (0,0)
 ;
 
-# Flag bits (?? manual is very confusing - could be typos!)
-@define C_flag "F[0,1]"		# C: Carry
-@define N_flag "F[1,1]"		# N: Add/Subtract
-@define PV_flag "F[2,1]"	# PV: Parity/Overflow
-@define H_flag "F[4,1]"		# H: Half Carry
-@define Z_flag "F[6,1]"		# Z: Zero
-@define S_flag "F[7,1]"		# S: Sign
+# Flag bits for the SR register
+@define C_flag "SR[0,1]"		# C: Carry
+@define S_flag "SR[1,1]"		# S: Saturation of operation for a MAC instruction
+@define Q_flag "SR[8,1]"		# Q: State of divide step
+@define M_flag "SR[9,1]"		# M: State of divide step
+@define BL_flag "SR[28,1]"		# BL: Exception/interrupt block bit
+@define RB_flag "SR[29,1]"		# RB: General register blank specifier in priv mode 
+@define MD_flag "SR[30,1]"		# MD: Processor mode
+
+
+# Removed as soon as you figure it out 
+@define N_flag "SR[1,1]"		# N: Add/Subtract
+@define PV_flag "SR[2,1]"	# PV: Parity/Overflow
+@define H_flag "SR[4,1]"		# H: Half Carry
+@define Z_flag "SR[6,1]"		# Z: Zero
 
 # Include contents of skel.sinc file
 @include "sh4.sinc"
