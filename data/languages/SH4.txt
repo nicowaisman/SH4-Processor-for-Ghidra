@@ -1,0 +1,280 @@
+
+Creating a project:
+
+1) File-New Project
+ 2) Ghidra Module Project
+ 
+
+
+
+=-=-=-=-=-=-=-=-
+=- Emulating: =-
+=-=-=-=-=-=-=-=-
+
+  http://oss.renesas.com/Documentations/Getting_Started_with_SH4_and_QEMU.pdf
+  
+ nico@Cyxtera:~/Research/qemu/sh4-softmmu$ ./qemu-system-sh4 -M r2d -serial stdio -m 1024M -kernel ../sh-test-0.2/zImage -usb -usbdevice keyboard -hda ../sh-test-0.2/sh-linux-mini.img 
+
+or 
+ nico@Cyxtera:~/Research/qemu/Images/system-image-sh4$ ./dev-environment.sh 
+
+=-=-=-=-=-=-=-=-=-=-=-=-
+=- Compiling Sleigh:  =-
+=-=-=-=-=-=-=-=-=-=-=-=-
+nico@Cyxtera:~/immunity/Tools/ghidra_9.0/Ghidra/Processors/SH4/data/languages$ ../../../../../support/sleigh SH4.slaspec SH4.sla
+
+
+=-=-=-=-=-=-=-=-
+=- Debugging  =-           
+=-=-=-=-=-=-=-=-
+
+In Ghidra open the script manager ("Window" -> "Script Manager") and add key-bindings for DebugSleighInstructionParse.java and ReloadSleighLangauge.java.
+
+In Ghidra enable PCode display by clicking the "Edit the Listing fields" icon at the top of the Listing view, right clicking "PCode" and clicking "Enable Field" (you may wish to toggle this on-and-off during reversing as it is quite verbose).
+
+
+=-=-=-=-=-=-=-
+=- Branch:  =-
+=-=-=-=-=-=-=-
+
+ = Delay Branch =
+ ================
+ "Except for the two branch instructions BF and BT, the SH-4’s branch instructions
+and RTE are delayed branches."
+
+  T bit
+The T bit in the status register (SR) is used to show the result of a compare
+operation, and is referenced by a conditional branch instruction. An example of the
+use of a conditional branch instruction is shown below.
+
+In an RTE delay slot, status register (SR) bits are referenced as follows. In
+instruction access, the MD bit is used before modification, and in data access, the
+MD bit is accessed after modification. The other bits S, T, M, Q, FD, BL, and RB
+after modification are used for delay slot instruction execution. The STC and STC.L
+SR instructions access all SR bits after modification.
+
+Constant:
+  8, 16 & 32 bit
+
+
+Addressing modes:
+   Register direct:                    	Rn
+   Register indirect:         			@Rn  			[Rn]
+   Register indirect w/post inc  		@Rn+  			[Rn+Const]  (1, 2, 4, 8 )
+   Register indirect w/pre  dec  		@-Rn  			[Rn-Const]
+   Register indirect w/displacement		@(disp:4, Rn)  	[Rn+disp* (2/4) ]
+   Indexed register indirect			@(R0, Rn)       [R0+Rn]
+   GBR indirect w/ displacement         @(disp:8, GBR)  [GBR+disp*(2/4)]
+   Indexed GBR indirect					@(R0, GBR) 		[R0 + GBR]
+   PC relativ w/ displacement			@(disp:8, PC)	Offset * (2/4)  // offset:8bit
+   PC-relative							@(disp:8)		Offset
+   PC-relative							@(disp:12)		Offset * (2/4)  // offset:12 bit
+   Immediate							imm:8			Immediate // 8 bit
+
+
+switch( instruction & 0xF )
+   
+
+
+
+=-=-=-=-=-=-=-
+=- Errors:  =-
+=-=-=-=-=-=-=-
+
+
+======================================
+** SH4_main.sinc:59: Attach varnode Rn1 is wrong size for list [R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, R13, R14, R15]
+
+
+define token RegN(16)
+
+ 	Rn1  = (8,  12)    
+ 	Rm2  =  (4, 7)    
+define register offset=0 size=4 [R0  R1  R2  R3  R4  R5  R6  R7 
+                                 R8  R9  R10 R11 R12 R13 R14 R15 ];
+
+attach variables [Rn1 Rn2 Rm1 Rm2] [R0  R1  R2  R3  R4  R5  R6  R7 
+                                 R8  R9  R10 R11 R12 R13 R14 R15 ];
+
+Fix: The error in this case is occasionated by Rn1 being bigger than 4 bits (In this case, 5 bits)
+
+
+
+=======================================
+SH4_main.sinc:89: imm8 (used in varnode reference) is not declared in the pattern list
+Unrecoverable error(s), halting compilation
+
+Line 89
+# Fixed Point Transfer Instructions 
+:MOV      IMM8, RN			is quad0=0xE & IMM8 { Rn = imm8; }
+
+
+define token SH4Instructions(16)
+    [...]
+ 	imm8  =  ( 0,  7)  # 8b
+
+IMM8: imm8 is imm8 			{ export imm8; }
+
+
+========================================================
+Error: operand SZ is undefined: for table "instruction" constructor from SH4_main.sinc:93
+
+:MOV.^SZ  Rm2, @-Rn          is quad0=2 & mode=1  & Rm2 & Rn { }
+
+SZ: "B" is msize=0 { }
+SZ: "W" is msize=1 { }
+SZ: "L" is msize=2 { }
+
+FIX: TURN OUT, I NEED TO INCLUDE "SZ" on the instruction:
+
+:MOV.^SZ  Rm2, @-Rn          is quad0=2 & mode=1  & Rm2 & Rn & SZ { }
+                                                               ^^
+
+=========================================================
+
+SH4_main.sinc:85: varnodelist_symbol Rn (defined at SH4_main.sinc:56) is wrong type (should be start, end, operand, epsilon, or varnode) in assignment
+
+(56) attach variables [ Rn Rm1 Rm2 ] [R0  R1  R2  R3  R4  R5  R6  R7 
+                                 R8  R9  R10 R11 R12 R13 R14 R15 ];
+
+
+(l85) RN: Rn is Rn				{ export Rn;   }
+
+:MOV      imm8, RN			is quad0=0xE & imm8 & RN { Rn = imm8; }
+
+
+FIX: Problem here I'm assinging Rn = Imm8, where it should be "RN"
+
+
+=========================================================
+SH4_main.sinc:95: unknown start, end, operand, epsilon, or varnode C in pattern expression
+Unrecoverable error(s), halting compilation
+
+(95) :MOV.^SZ2 R0, @(disp4, GBR)  is quad0=C & mode1=0 & SZ2 & R0 & disp4 & GBR { }
+
+define register offset=0x2000 size=4 [ SR  GBR SSR SPC SGR DBR VBR ];
+
+
+SZ2: "B" is msize2 = 0 & msize2 { }
+SZ2: "W" is msize2 = 1 & msize2 { }
+SZ2: "L" is msize2 = 2 & msize2 { }
+
+FIX: quad0=C should be quad0=0xC
+
+=========================================================
+sleighCompile:
+     [java] Compiling ./languages/sh4.slaspec:
+     [java] 
+     [java] Unrecoverable error(s), halting compilation
+     [java] java.lang.NullPointerException
+     [java] 	at ghidra.sleigh.grammar.AbstractSleighParser.getErrorHeader(AbstractSleighParser.java:45)
+     [java] 	at org.antlr.runtime.BaseRecognizer.displayRecognitionError(BaseRecognizer.java:192)
+     [java] 	at org.antlr.runtime.BaseRecognizer.reportError(BaseRecognizer.java:186)
+     [java] 	at ghidra.sleigh.grammar.SleighParser_SemanticParser.expr_func(SleighParser_SemanticParser.java:11087)
+     [java] 	at ghidra.sleigh.grammar.SleighParser_SemanticParser.expr_unary(SleighParser_SemanticParser.java:9968)
+     [java] 	at ghidra.sleigh.grammar.SleighParser_SemanticParser.expr_mult(SleighParser_SemanticParser.java:9540)
+     [java] 	at ghidra.sleigh.grammar.SleighParser_SemanticParser.expr_add(SleighParser_SemanticParser.java:9248)
+     [java] 	at ghidra.sleigh.grammar.SleighParser_SemanticParser.expr_shift(SleighParser_SemanticParser.java:8995)
+     [java] 	at ghidra.sleigh.grammar.SleighParser_SemanticParser.expr_comp(SleighParser_SemanticParser.java:8391)
+     [java] 	at ghidra.sleigh.grammar.SleighParser_SemanticParser.expr_eq(SleighParser_SemanticParser.java:8099)
+     [java] 	at ghidra.sleigh.grammar.SleighParser_SemanticParser.expr_and(SleighParser_SemanticParser.java:7964)
+     [java] 	at ghidra.sleigh.grammar.SleighParser_SemanticParser.expr_xor(SleighParser_SemanticParser.java:7781)
+     [java] 	at ghidra.sleigh.grammar.SleighParser_SemanticParser.expr_or(SleighParser_SemanticParser.java:7622)
+     [java] 	at ghidra.sleigh.grammar.SleighParser_SemanticParser.expr_booland(SleighParser_SemanticParser.java:7410)
+
+:AND      Rm2, Rn 			 is quad0=2 & quad3=0x9 & Rm2 & Rn {
+	Rn = Rm2 & Rn
+}
+
+
+FIX: Add a semicolon at the end!
+	Rn = Rm2 & Rn;                 ^
+=========================================================
+
+     [java] Error: operand imm8 is undefined: for table "instruction" constructor from sh4.sinc:205
+
+(205) :AND      "#"^imm8, R0 			 is quad0=0xC & quad1=0x9 & R0  {
+
+FIX: Again, forgot to define imm8
+:AND      "#"^imm8, R0 			 is quad0=0xC & quad1=0x9 & R0 & imm8 {
+   
+                                                              ^^^^^
+=========================================================
+     [java] sh4.sinc:205: in table "instruction" constructor from sh4.sinc:205
+     [java]    Main section: Could not resolve at least 1 variable size
+
+:AND      "#"^imm8, R0 			 is quad0=0xC & quad1=0x9 & R0 & imm8 {
+	R0 = R0 & zext(imm8);
+
+FIX: We need to define the size of imm8 while passed to zext
+:AND      "#"^imm8, R0 			 is quad0=0xC & quad1=0x9 & R0 & imm8 {
+	R0 = R0 & zext(imm8:2);
+	               ^^^^^^
+
+=========================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	
+:JP Addr16  is op0_8=0xc3; Addr16 {
+	goto Addr16;	
+}
+
+:JP cc,Addr16  is op6_2=0x3 & cc & bits0_3=0x2; Addr16 {
+	if (!cc) goto Addr16;
+}
+
+:JR RelAddr8  is op0_8=0x18; RelAddr8 {
+	goto RelAddr8;
+}
+
+:JR cc2,RelAddr8  is op6_2=0x0 & cc2 & bits0_3=0x0; RelAddr8 {
+	if (cc2) goto RelAddr8;
+}
+
+:JP (HL)  is op0_8=0xe9 & HL {
+	goto [HL];
+}
+
+:JP (IX)  is op0_8=0xdd & IX; op0_8=0xe9 {
+	goto [IX];
+}
+
+:JP (IY)  is op0_8=0xfd & IY; op0_8=0xe9 {
+	goto [IY];
+}
+
+:CALL Addr16  is op0_8=0xcd; Addr16 {
+    push16(&:2 inst_next);
+	call Addr16;
+}
+
+:CALL cc,Addr16  is op6_2=0x3 & cc & bits0_3=0x4; Addr16 {
+	if (!cc) goto inst_next;
+    push16(&:2 inst_next);
+	call Addr16;
+}
+
+#:RET  is op0_8=0xc9 {
+#	pop16(PC);
+#	ptr:2 = zext(PC);
+#	return [ptr];
+#}
+
+:RET cc  is op6_2=0x3 & cc & bits0_3=0x0 {
+	if (!cc) goto inst_next;
+	pop16(PC);
+	ptr:2 = zext(PC);
+	return [ptr];
+}	
