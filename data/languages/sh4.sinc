@@ -277,8 +277,10 @@ cc: "EQ" is quad3 = 0 {  }
 }
 :MOVT     Rn 				 is quad0=0 & quad2=2 & quad3=9 & Rn { Rn = zext($(T_flag)); }
 
-:SWAP.B   Rm2, Rn            is quad0=6 & quad3=8 & Rm2 & Rn  { }
-:SWAP.W   Rm2, Rn            is quad0=6 & quad3=9 & Rm2 & Rn  { }
+:SWAP.B   Rm2, Rn            is quad0=6 & quad3=8 & Rm2 & Rn  {
+	Rn = (Rm2 & 0xFFFF0000) | ( (Rm2 << 8) & 0xFF00 )  & (( Rm2 >> 8) & 0xFF);
+	 }
+:SWAP.W   Rm2, Rn            is quad0=6 & quad3=9 & Rm2 & Rn  { Rn = (Rm2 << 16) | ( Rm2 >> 16); }
 :XTRCT    Rm2, Rn            is quad0=2 & quad3=0xD & Rm2 & Rn { }
 
 #
