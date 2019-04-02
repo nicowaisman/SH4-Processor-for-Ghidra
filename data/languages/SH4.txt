@@ -172,6 +172,47 @@ L = Double word: 4 bytes
 
 
 
+=-=-=-=-=-=-=-=-=-=-
+=- GOOD EXAMPLES  =-
+=-=-=-=-=-=-=-=-=-=-
+
+
+Optimizing comparisions
+#######
+# VSEL
+
+vselcond: "eq"
+	is ((TMode=0 &     c2021=0b00)
+	|   (TMode=1 & thv_c2021=0b00))
+	{ tmp:1 = ZR; export tmp; }
+vselcond: "ge"
+	is ((TMode=0 &     c2021=0b10)
+	|   (TMode=1 & thv_c2021=0b10))
+	{ tmp:1 = (NG==OV); export tmp; }
+vselcond: "gt"
+	is ((TMode=0 &     c2021=0b11)
+	|   (TMode=1 & thv_c2021=0b11))
+	{ tmp:1 = (!ZR); export tmp; }
+vselcond: "vs"
+	is ((TMode=0 &     c2021=0b01)
+	|   (TMode=1 & thv_c2021=0b01))
+	{ tmp:1 = OV; export tmp; }
+
+# F6.1.200 p3690 A1/T1 size = 11 doubleprec (c0809)
+:vsel^vselcond^".f64" Dd,Dn,Dm
+	is ((TMode=0 &     c2831=0b1111 &     c2327=0b11100 &     c1011=0b10 &     c0606=0 &     c0404=0 &     c0809=0b11)
+	|   (TMode=1 & thv_c2831=0b1111 & thv_c2327=0b11100 & thv_c1011=0b10 & thv_c0606=0 & thv_c0404=0 & thv_c0809=0b11))
+	& vselcond & Dn & Dd & Dm
+	{ Dd = zext(vselcond != 0) * Dn + zext(vselcond == 0) * Dm; }
+
+# F6.1.200 p3690 A1/T1 size = 10 singleprec (c0809)
+:vsel^vselcond".f32" Sd,Sn,Sm
+	is ((TMode=0 &     c2831=0b1111 &     c2327=0b11100 &     c1011=0b10 &     c0606=0 &     c0404=0 &     c0809=0b10)
+	|   (TMode=1 & thv_c2831=0b1111 & thv_c2327=0b11100 & thv_c1011=0b10 & thv_c0606=0 & thv_c0404=0 & thv_c0809=0b10))
+	& vselcond & Sn & Sd & Sm
+	{ Sd = zext(vselcond != 0) * Sn + zext(vselcond == 0) * Sm; }
+
+
 
 
 =-=-=-=-=-=-=-

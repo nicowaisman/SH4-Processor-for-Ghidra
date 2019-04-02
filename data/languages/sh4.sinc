@@ -36,6 +36,10 @@ macro setEQFlag(op1, op2) {
 	$(T_flag) = (op1 == op2 );
 }
 
+macro setTFlag(flag) {
+	$(T_flag) = flag;	
+}
+
 macro setAddCarryFlags(op1,op2) {
 	#$(C_flag) = (carry(op1,zext($(C_flag))) || carry(op2,op1 + zext($(C_flag))));
 	$(C_flag) = carry(op1,op2); 
@@ -303,7 +307,7 @@ cc: "EQ" is quad3 = 0 {  }
 	Rn = Rm2 & Rn;
 }
 
-:AND      "#"^imm8, R0 			 is quad0=0xC & quad1=0x9 & R0 & imm8 {
+:AND      "#"^imm8, R0 		 is quad0=0xC & quad1=0x9 & R0 & imm8 {
 	R0 = R0 & zext(imm8:2);
 }
 
@@ -314,5 +318,15 @@ cc: "EQ" is quad3 = 0 {  }
 	*[ram]:2 tmp = tmpimm;
 }
 
+:CMP^"/EQ"   "#"^imm8, R0 	is quad0=0x8 & quad1= 0x8 & imm8 & R0 {
+	setEQFlag(imm8, R0);
+}
+
+COMP2OP: "EQ"			 	is quad3 = 0 & Rm2 & Rn { setTFlag( (Rn  == Rm2) ); } 
+COMP2OP: "HS"			 	is quad3 = 2 & Rm2 & Rn { setTFlag( (Rn  >= Rm2) ); } 
+COMP2OP: "GE"			 	is quad3 = 3 & Rm2 & Rn { setTFlag( (Rn s>= Rm2) ); } 
+COMP2OP: "HI"			 	is quad3 = 6 & Rm2 & Rn { setTFlag( (Rn   > Rm2) ); } 
+COMP2OP: "GT"			 	is quad3 = 7 & Rm2 & Rn { setTFlag( (Rn  s> Rm2) ); } 
+:CMP^COMP2OP Rm2, Rn 		is quad0=3 & Rm2 & Rn & COMP2OP { }
 
 
