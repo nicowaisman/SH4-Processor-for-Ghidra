@@ -281,7 +281,9 @@ cc: "EQ" is quad3 = 0 {  }
 	Rn = (Rm2 & 0xFFFF0000) | ( (Rm2 << 8) & 0xFF00 )  & (( Rm2 >> 8) & 0xFF);
 	 }
 :SWAP.W   Rm2, Rn            is quad0=6 & quad3=9 & Rm2 & Rn  { Rn = (Rm2 << 16) | ( Rm2 >> 16); }
-:XTRCT    Rm2, Rn            is quad0=2 & quad3=0xD & Rm2 & Rn { }
+:XTRCT    Rm2, Rn            is quad0=2 & quad3=0xD & Rm2 & Rn { 
+	Rn = ((Rm2 << 16) & 0xFFFF0000) | (( Rn >> 16) & 0xFFFF);
+}
 
 #
 :ADD 	  Rm2, Rn 			 is quad0=3 & quad3=0xC & Rm2 & Rn { 
