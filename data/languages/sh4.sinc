@@ -327,6 +327,17 @@ COMP2OP: "HS"			 	is quad3 = 2 & Rm2 & Rn { setTFlag( (Rn  >= Rm2) ); }
 COMP2OP: "GE"			 	is quad3 = 3 & Rm2 & Rn { setTFlag( (Rn s>= Rm2) ); } 
 COMP2OP: "HI"			 	is quad3 = 6 & Rm2 & Rn { setTFlag( (Rn   > Rm2) ); } 
 COMP2OP: "GT"			 	is quad3 = 7 & Rm2 & Rn { setTFlag( (Rn  s> Rm2) ); } 
-:CMP^COMP2OP Rm2, Rn 		is quad0=3 & Rm2 & Rn & COMP2OP { }
+
+:CMP^COMP2OP Rm2, Rn 		is quad0 = 3 & Rm2 & Rn & COMP2OP { }
+:CMP^"/PZ"	Rn				is quad0 = 4 & quad2=1 & quad3=1 & Rn { setTFlag( Rn s>= 0); } 
+:CMP^"/PL"	Rn				is quad0 = 4 & quad2=1 & quad3=5 & Rn { setTFlag( Rn s>  0); }
+:CMP^"/STR" Rm2, Rn 		is quad0 = 2 & quad3=0xC & Rm2 & Rn {
+	tmp = Rm2 ^ Rn;
+	T = ((tmp & 0xFF) ==0);
+	T = (((tmp >> 8  ) & 0xFF ) == 0) | T;
+	T = (((tmp >> 16 ) & 0xFF ) == 0) | T;
+	T = (((tmp >> 24 ) & 0xFF ) == 0) | T;
+	setTFlag( T );
+} 
 
 
