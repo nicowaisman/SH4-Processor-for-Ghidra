@@ -1,38 +1,5 @@
 # sleigh include file for Skeleton language instructions
 
-define token opbyte (8)
-   op0_8     = (0,7)
-   op6_2     = (6,7)
-   
-   dRegPair4_2    = (4,5)
-   pRegPair4_2    = (4,5)
-   sRegPair4_2    = (4,5)
-   qRegPair4_2    = (4,5)
-   qRegPair4_2a   = (4,5)
-   qRegPair4_2b   = (4,5)
-   rRegPair4_2    = (4,5)
-
-   reg3_3 = (3,5)
-   bits3_3   = (3,5)
-   
-   bits0_4   = (0,3)
-   
-   reg0_3 = (0,2)
-   bits0_3   = (0,2)
-;
-
-define token data8 (8)
-   imm9		= (0,7)
-   sign8	= (7,7)
-   simm8	= (0,7) signed
-;
-
-define token data16 (16)
-   timm4        = (12,15)
-   imm16        = (0,15)
-   sign16		= (15,15)
-   simm16		= (0,15) signed
-;
 
 define token SH4Instructions(16)
  	Rn    =  ( 8, 11)  # RN on the first 4 bits
@@ -55,17 +22,7 @@ define token SH4Instructions(16)
 attach variables [ Rn Rm Rm2 ] [R0  R1  R2  R3  R4  R5  R6  R7 
                                  R8  R9  R10 R11 R12 R13 R14 R15 ];
 
-attach variables [ reg0_3 reg3_3 ] [ B C D E H L _ A ];
-
-attach variables [ sRegPair4_2 dRegPair4_2 ] [ BC DE HL SP ];
-
-attach variables [ qRegPair4_2 ] [ BC DE HL AF ];
-attach variables [ qRegPair4_2a ] [ B D H A ];
-attach variables [ qRegPair4_2b ] [ C E L F ];
-
-attach variables [ pRegPair4_2 ] [ BC DE IX SP ];
-attach variables [ rRegPair4_2 ] [ BC DE IY SP ];
-
+#
 ################################################################
 # Macros
 ################################################################
@@ -73,6 +30,10 @@ attach variables [ rRegPair4_2 ] [ BC DE IY SP ];
 macro setResultFlags(result) {
 	$(Z_flag) = (result == 0);
 	$(S_flag) = (result s< 0);
+}
+
+macro setEQFlag(op1, op2) {
+	$(T_flag) = (op1 == op2 );
 }
 
 macro setAddCarryFlags(op1,op2) {
@@ -146,42 +107,176 @@ macro pop8(ret8) {
 
 ################################################################
 
-SZ: "B" is msize=0 {  }
-SZ: "W" is msize=1 { }
-SZ: "L" is msize=2 { }
-SZ2: "B" is msize2 = 0 { }
-SZ2: "W" is msize2 = 1 { }
-SZ2: "L" is msize2 = 2 { }
+# Question for Ghidra dude 
+# How can I export a variable that define the size, so I can later use it when im defining an operator
+#SZ: "B" valuesize is valuesize & msize=0 { local valuesize:1 = 1; export valuesize; }
+#SZ: "W" valuesize is valuesize & msize=1 { local valuesize:1 = 2; export valuesize;}
+#SZ: "L" valuesize is valuesize & msize=2 { local valuesize:1 = 4; export valuesize;}
+# :MOV.^SZ Rm2, @Rn 			 is quad0=2 & mode=0 & msize=0 & Rm2 & Rn & SZ  {  *[ram]:valuesize Rn = SZ;  }
+
+SZ: "B" is  msize=0 { }
+SZ: "W" is  msize=1 { }
+SZ: "L" is  msize=2 { }
+
+cc: "EQ" is quad3 = 0 {  }
 
 :MOV      "#"^imm8, Rn			is quad0=0xE & imm8 & Rn { 
 	Rn = sext(imm8:2); }
 
-#:MOV.W	@(disp8, PC), RN	is quad0=9 & disp8 & Rn { }
-#:MOV.L  @(disp8, PC), RN   	is quad0=0xd { }
-:MOV	  Rm2, Rn			 is quad0=6 & quad3=3 & Rm2 & Rn   { Rn = Rm2; }
+# TODO: PC RELATIVE MOVE 
+	#:MOV.W	@(disp8, PC), RN	is quad0=9 & disp8 & Rn { }
+	#:MOV.L  @(disp8, PC), RN   	is quad0=0xd { }
+	#:MOVA	  @(disp4, PC), R10  is quad0=C & quad1=7 & disp4 & PC & R0 { }
 
-:MOV.^SZ  Rm2, @Rn 			 is quad0=2 & mode=0  & Rm2 & Rn & SZ { 
-	#*Rn = Rm2;
-	#Rn = Rm2; 
-	#*:1 ptr = val8
+:MOV	  Rm2, Rn			is quad0=6 & quad3=3 & Rm2 & Rn   { Rn = Rm2; }
+# :MOV.^SZ Rm2, @Rn
+:MOV.B  Rm2, @Rn 			is quad0=2 & mode=0 & msize=0 & Rm2 & Rn  { *[ram]:1 Rn = Rm2;  }
+:MOV.W  Rm2, @Rn 			is quad0=2 & mode=0 & msize=1 & Rm2 & Rn  { *[ram]:2 Rn = Rm2;  }
+:MOV.L  Rm2, @Rn 			is quad0=2 & mode=0 & msize=2 & Rm2 & Rn  { *[ram]:4 Rn = Rm2;  }
+# :MOV.^SZ @Rm2, Rn
+:MOV.B  @Rm2, Rn          	is quad0=6 & mode=0 & msize=0 & Rm2 & Rn  { Rn = sext( *[ram]:1 Rm2); }
+:MOV.W  @Rm2, Rn          	is quad0=6 & mode=0 & msize=1 & Rm2 & Rn  { Rn = sext( *[ram]:2 Rm2); }
+:MOV.L  @Rm2, Rn          	is quad0=6 & mode=0 & msize=2 & Rm2 & Rn  { Rn = *[ram]:4 Rm2; }
+# MOV.^SZ Rm, @-Rn
+:MOV.B  Rm2, @-Rn 			is quad0=2 & mode=1 & msize=0 & Rm2 & Rn {
+   addr = Rn -1;
+   *[ram]:1 addr = Rm2:1;
+   Rn = addr;
+ }
+
+:MOV.W  Rm2, @-Rn          	is quad0=2 & mode=1 & msize=1 & Rm2 & Rn { 
+   addr = Rn -2;
+   *[ram]:2 addr = Rm2:2;
+   Rn = addr;
 }
-:MOV.^SZ  @Rm2, Rn           is quad0=6 & mode=0  & Rm2 & Rn & SZ { }
-:MOV.^SZ  Rm2, @-Rn          is quad0=2 & mode=1  & Rm2 & Rn & SZ { }
-:MOV.^SZ  @Rm2+, Rn          is quad0=6 & mode=1  & Rm2 & Rn & SZ { }
+:MOV.L  Rm2, @-Rn          	is quad0=2 & mode=1 & msize=2 & Rm2 & Rn {
+   addr = Rn - 4;
+   *[ram]:4 addr = Rm2:4;
+   Rn = addr;
+ }
 
-:MOV.B    0, @(disp4, Rn2) 	 is quad0=8 & quad1=0 & disp4 & Rn2 { }
-:MOV.W    0, @(disp4, Rn2) 	 is quad0=8 & quad1=1 & disp4 & Rn2 { }
-:MOV.L	  Rm2, @(disp4, Rn)  is quad0=1 & disp4 & Rm2 & Rn { }
-:MOV.B    @(disp4, Rm2), R0  is quad0=8 & quad1=4 & Rm2 & disp4 & R0 { } 
-:MOV.B    @(disp4, Rm2), R0  is quad0=8 & quad1=5 & Rm2 & disp4 & R0 { } 
-:MOV.L    @(disp4, Rm2), Rn  is quad0=5 & disp4 & Rm2 & Rn { }
-:MOV.^SZ  @Rm2, @(R0, Rn) 	 is quad0=0 & mode=1 & Rm2 & R0 & Rn  & SZ { }
-:MOV.^SZ  @(R0, @Rm2), Rn 	 is quad0=0 & mode=3 & Rm2 & R0 & Rn  & SZ { }
 
-:MOV.^SZ2 R0, @(disp4, GBR)  is quad0=0xC & mode1=0 & SZ2 & R0 & disp4 & GBR { }
-:MOV.^SZ2 @(disp4, GBR),R0   is quad0=0xC & mode1=1 & SZ2 & R0 & disp4 & GBR { }
-# :MOVA	  @(disp4, PC), R10  is quad0=C & quad1=7 & disp4 & PC & R0 { }
-:MOVT     Rn 				 is quad0=0 & quad2=2 & quad3=9 & Rn { }
+# Is this the right way?
+# There is no else? Can we optimize?
+# MOV.^SZ  @Rm2+, Rn 
+:MOV.B  @Rm2+, Rn          is quad0=6 & mode=1 & msize=0 & Rm2 & Rn {
+	local op2 = sext( *[ram]:1 Rm2 ); 
+
+	if( Rm2 != Rn) goto <plusone>;
+	 	Rm2 = op2;
+	 	goto <done>;
+     <plusone>
+         Rm2 = Rm2 + 1;
+    <done>
+ }
+:MOV.W  @Rm2+, Rn          is quad0=6 & mode=1 & msize=1 & Rm2 & Rn { 
+	local op2 = sext( *[ram]:2 Rm2 ); 
+
+	if( Rm2 != Rn) goto <plusone>;
+	 	Rm2 = op2;
+	 	goto <done>;
+     <plusone>
+         Rm2 = Rm2 + 1;
+    <done>
+
+}
+:MOV.L  @Rm2+, Rn          is quad0=6 & mode=1 & msize=2 & Rm2 & Rn { 
+	local op2 =  *[ram]:4 Rm2; 
+
+	if( Rm2 != Rn) goto <plusone>;
+	 	Rm2 = op2;
+	 	goto <done>;
+     <plusone>
+         Rm2 = Rm2 + 1;
+    <done>
+
+}
+
+:MOV.B    R0, @(disp4, Rn2)  is quad0=8 & quad1=0 & disp4 & Rn2 & R0 {
+	tmpaddr:4 = Rn2 +  zext(disp4:1);
+	*[ram]:1 tmpaddr = R0:1; 
+ }
+:MOV.W    R0, @(disp4, Rn2)  is quad0=8 & quad1=1 & disp4 & Rn2 & R0 { 
+	tmpaddr:4 = Rn2 + zext(disp4:1) << 1;
+	*[ram]:2 tmpaddr = R0:2;
+}
+:MOV.L	  Rm2, @(disp4, Rn)  is quad0=1 & disp4 & Rm2 & Rn { 
+	tmpaddr:4 = Rn + zext(disp4:1) << 2;
+	*tmpaddr = Rm2;
+}
+
+# 375
+:MOV.B    @(disp4, Rm2), R0  is quad0=8 & quad1=4 & Rm2 & disp4 & R0 {
+     tmpaddr:4 = zext(disp4:1) + Rm2;
+     R0 = sext( *[ram]:1 tmpaddr ); 
+ } 
+
+:MOV.W    @(disp4, Rm2), R0  is quad0=8 & quad1=5 & Rm2 & disp4 & R0 {
+     tmpaddr:4 = zext(disp4:1) + Rm2;
+     R0 = sext( *[ram]:2 tmpaddr ); 
+ } 
+:MOV.L    @(disp4, Rm2), Rn  is quad0=5 & disp4 & Rm2 & Rn { 
+     tmpaddr:4 = zext(disp4:1) + Rm2;
+     R0 = *tmpaddr; 
+}
+:MOV.B  Rm2, @(R0, Rn) 	 is quad0=0 & mode=1 & msize=0 & Rm2 & R0 & Rn {
+	tmpaddr = R0 + Rn;
+	 *[ram]:1 tmpaddr = Rm2:1;
+
+ }
+:MOV.W  Rm2, @(R0, Rn) 	 is quad0=0 & mode=1 & msize=1 & Rm2 & R0 & Rn {
+	tmpaddr = R0 + Rn;
+	 *[ram]:2 tmpaddr = Rm2:2;
+
+ }
+
+:MOV.L  Rm2, @(R0, Rn) 	 is quad0=0 & mode=1 & msize=2 & Rm2 & R0 & Rn  {
+	tmpaddr = R0 + Rn;
+	 *[ram]:4 tmpaddr = Rm2;
+
+ }
+
+:MOV.B  @(R0, @Rm2), Rn 	 is quad0=0 & mode=3 & msize=0 & Rm2 & R0 & Rn {
+	tmpaddr = R0 + Rm2;
+	Rn = sext( *[ram]:1 tmpaddr);
+ }
+:MOV.W  @(R0, @Rm2), Rn 	 is quad0=0 & mode=3 & msize=1 & Rm2 & R0 & Rn {
+	tmpaddr = R0 + Rm2;
+	Rn = sext( *[ram]:2 tmpaddr);
+ }
+:MOV.L  @(R0, @Rm2), Rn 	 is quad0=0 & mode=3 & msize=2 & Rm2 & R0 & Rn {
+	tmpaddr = R0 + Rm2;
+	Rn = sext( *[ram]:4 tmpaddr);
+ }
+
+:MOV.B R0, @(disp8, GBR)  is quad0=0xC & mode1=0 & msize2=0 & R0 & disp8 & GBR { 
+	tmpaddr:4 = zext( disp8:2) + GBR;
+	*[ram]:1 tmpaddr = R0:1; 	
+}
+:MOV.W R0, @(disp8, GBR)  is quad0=0xC & mode1=0 & msize2=1 & R0 & disp8 & GBR { 
+	tmpaddr:4 = zext( disp8:2) + GBR;
+	*[ram]:2 tmpaddr = R0:2; 	
+}
+:MOV.L R0, @(disp8, GBR)  is quad0=0xC & mode1=0 & msize2=2 & R0 & disp8 & GBR { 
+	tmpaddr:4 = zext( disp8:2) + GBR;
+	*[ram]:4 tmpaddr = R0; 	
+}
+
+
+:MOV.B @(disp8, GBR),R0   is quad0=0xC & mode1=1 & msize2=0 & R0 & disp8 & GBR { 
+	tmpaddr:4 = zext( disp8:2) + GBR;
+	R0 = sext(*[ram]:1 tmpaddr); 	
+}
+:MOV.W @(disp8, GBR),R0   is quad0=0xC & mode1=1 & msize2=1 & R0 & disp8 & GBR { 
+	tmpaddr:4 = zext( disp8:2) + GBR;
+	R0 = sext(*[ram]:2 tmpaddr); 	
+}
+:MOV.L @(disp8, GBR),R0   is quad0=0xC & mode1=1 & msize2=2 & R0 & disp8 & GBR { 
+	tmpaddr:4 = zext( disp8:2) + GBR;
+	R0 = *[ram]:4 tmpaddr; 	
+}
+:MOVT     Rn 				 is quad0=0 & quad2=2 & quad3=9 & Rn { Rn = zext($(T_flag)); }
+
 :SWAP.B   Rm2, Rn            is quad0=6 & quad3=8 & Rm2 & Rn  { }
 :SWAP.W   Rm2, Rn            is quad0=6 & quad3=9 & Rm2 & Rn  { }
 :XTRCT    Rm2, Rn            is quad0=2 & quad3=0xD & Rm2 & Rn { }
@@ -211,8 +306,8 @@ SZ2: "L" is msize2 = 2 { }
 # XXX: This is a draft, requires a second review. 
 :AND.B 	  "#"^imm8, @(R0, GBR)		is quad0=0xC & quad1=0xD & R0 & GBR & imm8 {
 	tmp = R0 + GBR;
-	tmpimm = *tmp:2 & imm8:2;
-	*tmp:2 = tmpimm;
+	tmpimm = *[ram]:2 tmp & imm8:2;
+	*[ram]:2 tmp = tmpimm;
 }
 
 

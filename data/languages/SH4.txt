@@ -61,7 +61,10 @@ Addressing modes:
    Register direct:                    	Rn
    Register indirect:         			@Rn  			[Rn]
    Register indirect w/post inc  		@Rn+  			[Rn+Const]  (1, 2, 4, 8 )
-   Register indirect w/pre  dec  		@-Rn  			[Rn-Const]
+ -  Register indirect w/pre  dec  		@-Rn  			[Rn-Const]
+     / Effective address is register Rn contents, decremented by a constant beforehand,
+     1 for a byte operand, 2 for a word operand, 4 for a longword operand, 8 for a quadword operand. 
+
    Register indirect w/displacement		@(disp:4, Rn)  	[Rn+disp* (2/4) ]
    Indexed register indirect			@(R0, Rn)       [R0+Rn]
    GBR indirect w/ displacement         @(disp:8, GBR)  [GBR+disp*(2/4)]
@@ -74,6 +77,100 @@ Addressing modes:
 
 switch( instruction & 0xF )
    
+
+
+Symbols:
+--------
+instruction ->	The root instruction table.
+const  ->		Special address space for building constant varnodes.
+unique ->		Address space for allocating temporary registers.
+inst_start ->	Offset of the address of the current instruction.
+inst_next ->	Offset of the address of the next instruction.
+epsilon	 ->		A special identifier indicating an empty bit pattern.
+
+
+Extension:
+----------
+zext (unsigned)
+sext (signed)
+
+Most processors have instructions that extend small values into big values, and many instructions do these minor data manipulations implicitly. In keeping with the p-code philosophy, these operations must be specified explicitly with the INT_ZEXT and INT_SEXT operators in the semantic section. The INT_ZEXT, does a so-called zero extension. The low-order bits are copied from the input, and any remaining high-order bits in the result are set to zero. The INT_SEXT, does a signed extension. The low-order bits are copied from the input, but any remaining high-order bits in the result are set to the value of the high-order bit of the input. The INT_ZEXT operation is invoked with the zext operator, and the INT_SEXT operation is invoked with the sext operator.
+
+Truncation
+----------
+Truncation
+There are two forms of syntax indicating a truncation of the input varnode. In one the varnode is followed by a colon ‘:’ and an integer indicating the number of bytes to copy into the output, starting with the least significant byte. In the second form, the varnode is followed by an integer, surrounded by parentheses, indicating the number of least significant bytes to truncate from the input. This second form doesn’t directly specify the size of the output, which must be inferred from context.
+
+:split r1,lo,hi is opcode=0x81 & r1 & lo & hi {
+    lo = r1:4;
+    hi = r1(4);
+}
+
+BitRange
+--------
+  R2 [ bit start, size ]
+
+
+A specific subrange of bits within a varnode can be explicitly referenced. Depending on the range, this may amount to just a variation on the truncation syntax described earlier. But for this operator, the size and boundaries of the range do not have to be restricted to byte alignment.
+
+:bit3 r1,r2 is op=0x7e & r1 & r2 { r1 = zext(r2[3,1]); }
+A varnode, r2 in this example, is immediately followed by square brackets ‘[’ and ‘]’ indicating a bit range, and within the brackets, there are two parameters separated by a comma. The first parameter is an integer indicating the least significant bit of the resulting bit range. The bits of the varnode are labeled in order of significance, with the least significant bit of the varnode being 0. The second parameter is an integer indicating the number of bits in the range. In the example, a single bit is extracted from r2, and its value is extended to fill r1. Thus r1 takes either the value 0 or 1, depending on bit 3 of r2.
+
+There are some caveats associated with using this operator. Bit range extraction is really a pseudo operator, as real p-code can only work with memory down to byte resolution. The bit range operator will generate some combination of INT_RIGHT, INT_AND, and SUBPIECE to simulate the extraction of smaller or unaligned pieces. The “r2[3,1]” from the example generates the following p-code, for instance.
+
+u1 = INT_RIGHT r2,#3
+u2 = SUBPIECE u1,0
+u3 = INT_AND u2,#0x1
+The result of any bit range operator still has a size in bytes. This size is always the minimum number of bytes needed to contain the resulting bit range, and if there are any extra bits in the result these are automatically set to zero.
+
+VarNode Size
+------------
+All statements within the semantic section must be specified up to the point where the sizes of all varnodes are unambiguously determined. Most specific symbols, like registers, must have their size defined by definition, but there are two sources of size ambiguity.
+
+- Constants
+- Temporary Variables
+
+The SLEIGH compiler can usually fill in the required size by examining these situations in the context of the entire semantic section. Most p-code operations have size restrictions on their inputs and outputs, which when put together can uniquely determine the unspecified sizes. Referring to Table 5, “Semantic Expression Operators and Syntax” in the Appendix, all arithmetic and logical operations, both integer and floating point, must have inputs and outputs all of the same size. The only exceptions are as follows. The overflow operators, INT_CARRY, INT_SCARRY, INT_SBORROW, and FLOAT_NAN have a boolean output. The shift operators, INT_LEFT, INT_RIGHT, and INT_SRIGHT, currently place no restrictions on the shift amount operand. All the comparison operators, both integer and floating point, insist that their inputs are all the same size, and the output must be a boolean variable, with a size of 1 byte.
+
+The operators without a size constraint are the load and store operators, the extension and truncation operators, and the conversion operators. As discussed in Section 7.7.1.2, “The '*' Operator”, the ‘*’ operator cannot get size information for the dynamic (pointed-to) object from the pointer itself. The other operators by definition involve a change of size from input to output.
+
+If the SLEIGH compiler cannot discover the sizes of constants and temporaries, it will report an error stating that it could not resolve variable sizes for that constructor. This can usually be fixed rapidly by appending the size ‘:’ modifier to either the ‘*’ operator, the temporary variable definition, or to an explicit integer. Here are three examples of statements that generate a size resolution error, each followed by a variation which corrects the error.
+
+:sta [r1],imm is opcode=0x3a & r1 & imm {
+    *r1 = imm;                                      #Error
+}
+:sta [r1],imm is opcode=0x3a & r1 & imm {
+    *:4 r1 = imm;                                   #Correct
+}
+:inc [r1]     is opcode=0x3b & r1       {
+    tmp = *r1 + 1; *r1 = tmp;                       # Error
+}
+:inc [r1]     is opcode=0x3b & r1       {
+    tmp:4 = *r1 + 1; *r1 = tmp;                     # Correct
+}
+:clr [r1]     is opcode=0x3c & r1       {
+    * r1 = 0;                                       # Error
+}
+:clr [r1]     is opcode=0x3c & r1       {
+    * r1 = 0:4;                                     # Correct
+}
+
+
+Examples of Loading/Storing bytes of different size.
+
+L = Double word: 4 bytes
+:MOV.L	  Rm2, @(disp4, Rn)  is quad0=1 & disp4 & Rm2 & Rn { 
+	tmpaddr:4 = zext(disp4:1 *2) + Rn;
+	*tmpaddr = Rm2;
+}
+
+:MOV.B    R0, @(disp4, Rn2)  is quad0=8 & quad1=0 & disp4 & Rn2 & R0 {
+	tmpaddr:4 = Rn2 +  zext(disp4:1);
+	*[ram]:1 tmpaddr = R0:1; 
+ }
+
+
+
 
 
 
@@ -212,6 +309,32 @@ FIX: We need to define the size of imm8 while passed to zext
 	               ^^^^^^
 
 =========================================================
+Error:
+sleighCompile:
+     [java] Compiling ./languages/sh4.slaspec:
+     [java] 
+     [java] 0 languages successfully compiled
+     [java] /home/nico/immunity/Tools/ghidra_9.0/Ghidra/Processors/SH4/data/./languages/sh4.slaspec failed to compile
+     [java] 1 languages total failed to compile
+     [java] 24 NOP constructors found
+     [java] Use -n switch to list each individually
+     [java] Size restriction error in table "instruction" in constructor at sh4.sinc:215 from operation located at sh4.sinc:217
+     [java]   Problem in "Load(*)" operator
+     [java]   Pointer size must match size of space
+     [java] Size restriction error in table "instruction" in constructor at sh4.sinc:215 from operation located at sh4.sinc:218
+     [java]   Problem in "Store(*)" operator
+     [java]   Pointer size must match size of space
+     [java] No output produced
+
+I was having problems with my registers/ram with size=2:
+
+define space ram     type=ram_space      size=2  default;
+define space register type=register_space size=2;
+
+The problem here that the size is used to define the number of bytes need to address any bytes within this the space. The solution was to move it as 4.
+
+define space ram     type=ram_space      size=4  default;
+define space register type=register_space size=4;
 
 
 
@@ -225,56 +348,35 @@ FIX: We need to define the size of imm8 while passed to zext
 
 
 
+Otros ejemplos:
 
-	
-:JP Addr16  is op0_8=0xc3; Addr16 {
-	goto Addr16;	
+:cmp^COND rn,shift1 		is $(AMODE) &  COND & c2024=21 & rn & c1215=0 & c2627=0 & shift1
+{
+  build COND;
+  build rn;
+  build shift1;
+  subflags(rn,shift1);
+  local tmp = rn - shift1;
+  resultflags(tmp);
+  affectflags();
 }
 
-:JP cc,Addr16  is op6_2=0x3 & cc & bits0_3=0x2; Addr16 {
-	if (!cc) goto Addr16;
-}
+COND: cc is $(AMODE) &  cc		      { if (!cc) goto inst_next; }   # Execute conditionally
 
-:JR RelAddr8  is op0_8=0x18; RelAddr8 {
-	goto RelAddr8;
-}
+cc: "eq" is cond=0          { export ZR; }
+cc: "ne" is cond=1          { tmp:1 = !ZR; export tmp; }
+cc: "cs" is cond=2          { export CY; }
+cc: "cc" is cond=3          { tmp:1 = !CY; export tmp; }
+cc: "mi" is cond=4          { export NG; }
+cc: "pl" is cond=5          { tmp:1 = !NG; export tmp; }
+cc: "vs" is cond=6          { export OV; }
+cc: "vc" is cond=7          { tmp:1 = !OV; export tmp; }
+cc: "hi" is cond=8          { tmp:1 = CY && (!ZR); export tmp; }
+cc: "ls" is cond=9          { tmp:1 = (!CY) || ZR; export tmp; }
+cc: "ge" is cond=10         { tmp:1 = (NG==OV); export tmp; }
+cc: "lt" is cond=11         { tmp:1 = (NG!=OV); export tmp; }
+cc: "gt" is cond=12         { tmp:1 = (!ZR) && (NG==OV); export tmp; }
+cc: "le" is cond=13         { tmp:1 = ZR || (NG!=OV); export tmp; }
 
-:JR cc2,RelAddr8  is op6_2=0x0 & cc2 & bits0_3=0x0; RelAddr8 {
-	if (cc2) goto RelAddr8;
-}
-
-:JP (HL)  is op0_8=0xe9 & HL {
-	goto [HL];
-}
-
-:JP (IX)  is op0_8=0xdd & IX; op0_8=0xe9 {
-	goto [IX];
-}
-
-:JP (IY)  is op0_8=0xfd & IY; op0_8=0xe9 {
-	goto [IY];
-}
-
-:CALL Addr16  is op0_8=0xcd; Addr16 {
-    push16(&:2 inst_next);
-	call Addr16;
-}
-
-:CALL cc,Addr16  is op6_2=0x3 & cc & bits0_3=0x4; Addr16 {
-	if (!cc) goto inst_next;
-    push16(&:2 inst_next);
-	call Addr16;
-}
-
-#:RET  is op0_8=0xc9 {
-#	pop16(PC);
-#	ptr:2 = zext(PC);
-#	return [ptr];
-#}
-
-:RET cc  is op6_2=0x3 & cc & bits0_3=0x0 {
-	if (!cc) goto inst_next;
-	pop16(PC);
-	ptr:2 = zext(PC);
-	return [ptr];
-}	
+COND: cc is $(AMODE) &  cc		      { if (!cc) goto inst_next; }   # Execute conditionally
+COND:    is $(AMODE) &  cond=14	  { }			     # Always execute

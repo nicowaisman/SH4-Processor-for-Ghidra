@@ -6,10 +6,10 @@
 define endian=big;
 define alignment=2;
 
-define space ram     type=ram_space      size=2  default;
+define space ram     type=ram_space      size=4  default;
 
-define space io      type=ram_space      size=2;
-define space register type=register_space size=1;
+#define space io      type=ram_space      size=4;
+define space register type=register_space size=4;
 
 # General Registers
 define register offset=0x0 size=4 [R0  R1  R2  R3  R4  R5  R6  R7 
@@ -18,16 +18,10 @@ define register offset=0x0 size=4 [R0  R1  R2  R3  R4  R5  R6  R7
 # Control Registers
 define register offset=0x40 size=4 [ SR  GBR SSR SPC SGR DBR VBR ];
 # System Registers
-define register offset=0x60 size=4 [ MACH MACL PR FPUL  FPSCR  ];  # ADD "PC later
+define register offset=0x60 size=4 [ MACH MACL PR FPUL  FPSCR PC ];  # ADD "PC later
 
-define register offset=0x00 size=1 [ F A C B E D L H I R ];
-define register offset=0x00 size=2 [ AF  BC  DE  HL ];
-define register offset=0x20 size=1 [ A_ F_ B_ C_ D_ E_ H_ L_ ]; # Alternate registers
-define register offset=0x20 size=2 [ AF_   BC_   DE_   HL_ ]; # Alternate registers
 
-define register offset=0x40 size=2 [ _  PC SP IX IY ];
-
-define register offset=0x50 size=1 [ rCBAR rCBR rBBR ];
+define register offset=0x40 size=2 [  SP  ]; # TO BE REMOVED
 
 # Define context bits (if defined, size must be multiple of 4-bytes)
 define register offset=0xf0 size=4   contextreg;
@@ -38,6 +32,7 @@ define context contextreg
 
 # Flag bits for the SR register
 @define C_flag "SR[0,1]"		# C: Carry
+@define T_flag "SR[0,1]"		# C: True/False condition
 @define S_flag "SR[1,1]"		# S: Saturation of operation for a MAC instruction
 @define Q_flag "SR[8,1]"		# Q: State of divide step
 @define M_flag "SR[9,1]"		# M: State of divide step
