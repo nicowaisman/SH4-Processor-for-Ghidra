@@ -311,21 +311,6 @@ cc: "EQ" is quad3 = 0 {  }
 	Rn = Rm2 + Rn;
 	setAddCarryFlagsS(Rn, Rm2);
 }
-:AND      Rm2, Rn 			 is quad0=2 & quad3=0x9 & Rm2 & Rn {
-	Rn = Rm2 & Rn;
-}
-
-:AND      "#"^imm8, R0 		 is quad0=0xC & quad1=0x9 & R0 & imm8 {
-	R0 = R0 & zext(imm8:2);
-}
-
-# XXX: This is a draft, requires a second review. 
-:AND.B 	  "#"^imm8, @(R0, GBR)		is quad0=0xC & quad1=0xD & R0 & GBR & imm8 {
-	tmp = R0 + GBR;
-	tmpimm = *[ram]:2 tmp & imm8:2;
-	*[ram]:2 tmp = tmpimm;
-}
-
 :CMP^"/EQ"   "#"^imm8, R0 	is quad0=0x8 & quad1= 0x8 & imm8 & R0 {
 	setEQFlag(imm8, R0);
 }
@@ -414,5 +399,49 @@ COMP2OP: "GT"			 	is quad3 = 7 & Rm2 & Rn { setTFlag( (Rn  s> Rm2) ); }
 	setTFlag( sborrow( Rn, Rm2) );
 	Rn = Rn - Rm2;
 }
+
+:AND      Rm2, Rn 			 is quad0=2 & quad3=0x9 & Rm2 & Rn {
+	Rn = Rm2 & Rn;
+}
+
+:AND      "#"^imm8, R0 		 is quad0=0xC & quad1=0x9 & R0 & imm8 {
+	R0 = R0 & zext(imm8:2);
+}
+
+# TODO: XXX: This is a draft, requires a second review. 
+:AND.B 	  "#"^imm8, @(R0, GBR)		is quad0=0xC & quad1=0xD & R0 & GBR & imm8 {
+	tmp = R0 + GBR;
+	tmpimm = *[ram]:2 tmp & imm8:2;
+	*[ram]:2 tmp = tmpimm;
+}
+:NOT 	Rm2, Rn 			is quad0=6 & quad3=7 & Rm2 & Rn { Rn = ~Rm2; }
+:OR   	Rm2, Rn 			is quad0=2 & quad3=0xB & Rm2 & Rn { Rn = Rm2 | Rn; }
+:OR   	"#"^imm8, R0 		is quad0=0xC & quad1=0xb & R0 & imm8 { R0 = R0 | zext(imm8:2) ; }
+:OR.B 	"#"^imm8, @(R0, GBR)		is quad0=0xC & quad1=0xF & R0 & GBR & imm8 {
+	local tmpaddr = R0 + GBR;
+	local value = *[ram]:2 tmpaddr;
+	*[ram]:2 tmpaddr = zext(value) | zext(imm8:2);
+} 
+# TODO TAS
+:TAS.B 	@Rn 				is quad0=4 & quad2=1 & quad3=0xB & Rn {	 }
+
+:TST 	Rm2, Rn 			is quad0=2 & quad3=8 & Rm2 & Rn {
+	setTFlag( ( (Rn & Rm2) == 0) );
+}
+:TST   	"#"^imm8, Rn 		is quad0=0xC & quad1=0x8 & Rn & imm8 { 
+	setTFlag( ( (Rn & zext(imm8:2) ) == 0) ); 
+}
+:TST.B 	"#"^imm8, @(R0, GBR)		is quad0=0xC & quad1=0xC & R0 & GBR & imm8 {
+	local tmpaddr = R0 + GBR;
+	value = *[ram]:2 tmpaddr;
+	setTFlag(  ( ( value & imm8:2) ==0 ) );
+}
+:XOR 	Rm2, Rn 			is quad0=2 & quad3=0xA & Rm2 & Rn { Rn = Rm2 ^ Rn; }
+:XOR   	"#"^imm8, R0 		is quad0=0xC & quad1=0xA & R0 & imm8 { R0 = R0 ^ zext(imm8:2); }
+:XOR.B 	"#"^imm8, @(R0, GBR)		is quad0=0xC & quad1=0xE & R0 & GBR & imm8 {
+	local tmpaddr = R0 + GBR;
+	local value = *[ram]:2 tmpaddr;
+	*[ram]:2 tmpaddr = zext(value) ^ zext(imm8:2);
+} 
 
 
