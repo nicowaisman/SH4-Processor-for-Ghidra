@@ -39,6 +39,14 @@ macro setEQFlag(op1, op2) {
 macro setTFlag(flag) {
 	$(T_flag) = flag;	
 }
+macro setQFlag(flag) {
+	$(Q_flag) = flag;	
+}
+macro setMFlag(flag) {
+	$(M_flag) = flag;	
+}
+
+
 
 macro setAddCarryFlags(op1,op2) {
 	#$(C_flag) = (carry(op1,zext($(C_flag))) || carry(op2,op1 + zext($(C_flag))));
@@ -339,5 +347,72 @@ COMP2OP: "GT"			 	is quad3 = 7 & Rm2 & Rn { setTFlag( (Rn  s> Rm2) ); }
 	T = (((tmp >> 24 ) & 0xFF ) == 0) | T;
 	setTFlag( T );
 } 
+# TODO: The DIV1
+:DIV1		Rm2, Rn 		is quad0=3 & quad3=4 & Rm2 & Rn {
+}
+:DIV0U		Rm2, Rn 		is quad0=2 & quad3=7 & Rm2 & Rn {
+	q =  Rn[31,1];
+	m =  Rm2[31,1];
+	setQFlag( q );
+	setMFlag( m );
+	setTFlag( q ^ m );
+}
+
+:DIV0U 		Rm2, Rn 		is quad0=0 & quad1=0 & quad2=1 & quad3=9 & Rm2 & Rn {
+	setTFlag(0:1);
+	setQFlag(0:1);
+	setMFlag(0:1);
+}
+# TODO: DMUL 
+:DMULS.L 	Rm2, Rn 		is quad0=3 & quad3=0xd & Rm2 & Rn { }
+:DMULU.L    Rm2, Rn 		is quad0=3 & quad3=0x5 & Rm2 & Rn { }
+
+:DT 		Rn 				is quad0=4 & quad3=0 & quad2=1 & Rn {
+	Rn = Rn -1;
+	setTFlag( (Rn ==0) );
+}
+:EXTS.B 	Rm2, Rn 		is quad0=6 & quad3=0xE & Rm2 & Rn {
+	Rn = sext( Rm2:1 );
+}
+:EXTS.W 	Rm2, Rn 		is quad0=6 & quad3=0xF & Rm2 & Rn {
+		Rn = sext( Rm2:2 );
+}
+:EXTU.B 	Rm2, Rn 		is quad0=6 & quad3=0xC & Rm2 & Rn {
+		Rn = zext( Rm2:1 );
+}
+:EXTU.W 	Rm2, Rn 		is quad0=6 & quad3=0xd & Rm2 & Rn {
+		Rn = zext( Rm2:2 );
+}
+# TODO: MAC.L & MAC.W 
+:MAC.L 		@Rm2+, @Rn+ 		is quad0=0 & quad3=0xF & Rm2 & Rn { }
+:MAC.W 	    @Rm2+, @Rn+ 		is quad0=4 & quad3=0xF & Rm2 & Rn { }	
+
+:MUL.L 	    Rm2, Rn 			is quad0=0 & quad3=0x7 & Rm2 & Rn {
+	MACL = Rm2 * Rn;
+ }
+ # TODO:  Double check
+:MULS.W 	Rm2, Rn 			is quad0=2 & quad3=0xF & Rm2 & Rn  {
+	MACL = sext( Rm2:2 * Rn:2 );	
+}
+:MULU.W 	Rm2, Rn 			is quad0=2 & quad3=0xE & Rm2 & Rn {
+	MACL = zext( Rm2:2 * Rn:2);
+ }
+:NEG		Rm2, Rn 			is quad0=6 & quad3=0xB & Rm2 & Rn { Rn = -Rm2; }
+:NEGC 		Rm2, Rn 			is quad0=6 & quad3=0xA & Rm2 & Rn {
+	setTFlag( sborrow( -Rm2 , zext( $(T_flag) )) );
+	Rn = -Rm2 - zext( $(T_flag));
+ }
+:SUB 		Rm2, Rn 			is quad0=3 & quad3=8  & Rm2 & Rn {	Rn = Rn - Rm2; }
+:SUBC       Rm2, Rn 			is quad0=3 & quad3=0xA & Rm2 & Rn {
+	local tmpborrow = sborrow( Rn, Rm2);
+	Rn =  Rn - Rm2;
+	tmpborrow = tmpborrow | sborrow( Rn, zext( $(T_flag)) ); 
+	Rn = Rn - zext( $(T_flag) );
+	setTFlag( tmpborrow );
+	}
+:SUBV       Rm2, Rn 			is quad0=3 & quad3=0xB & Rm2 & Rn { 
+	setTFlag( sborrow( Rn, Rm2) );
+	Rn = Rn - Rm2;
+}
 
 
