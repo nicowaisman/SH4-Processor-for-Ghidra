@@ -3,12 +3,11 @@
 # Other language modules (see Ghidra/Processors) may provide better examples
 # when creating a new language module.
 
-define endian=big;
+define endian=little;
 define alignment=2;
 
 define space ram     type=ram_space      size=4  default;
 
-#define space io      type=ram_space      size=4;
 define space register type=register_space size=4;
 
 # General Registers

@@ -10,6 +10,8 @@ define token SH4Instructions(16)
  	disp4 =  ( 0,  3)  
  	disp8 =  ( 0,  7)  # 8b
  	imm8  =  ( 0,  7)  # 8b
+ 	simm8 =  ( 0,  7) signed  # 8b 	
+ 	simm12=  ( 0, 11) signed  # 8b 	
 	quad3 =  ( 0,  3)
 	quad2 =  ( 4,  7)
     quad1 =  ( 8, 11)
@@ -27,10 +29,6 @@ attach variables [ Rn Rm Rm2 ] [R0  R1  R2  R3  R4  R5  R6  R7
 # Macros
 ################################################################
 
-macro setResultFlags(result) {
-	$(Z_flag) = (result == 0);
-	$(S_flag) = (result s< 0);
-}
 
 macro setEQFlag(op1, op2) {
 	$(T_flag) = (op1 == op2 );
@@ -126,19 +124,28 @@ macro pop8(ret8) {
 #SZ: "L" valuesize is valuesize & msize=2 { local valuesize:1 = 4; export valuesize;}
 # :MOV.^SZ Rm2, @Rn 			 is quad0=2 & mode=0 & msize=0 & Rm2 & Rn & SZ  {  *[ram]:valuesize Rn = SZ;  }
 
-SZ: "B" is  msize=0 { }
-SZ: "W" is  msize=1 { }
-SZ: "L" is  msize=2 { }
+#SZ: "B" is  msize=0 { }
+#SZ: "W" is  msize=1 { }
+#SZ: "L" is  msize=2 { }
 
-cc: "EQ" is quad3 = 0 {  }
+#cc: "EQ" is quad3 = 0 {  }
+
+
+
+dest8: 		reloc is simm8 		[ reloc = inst_start + 4 + (simm8 <<1); ] { export *[ram]:4 reloc; }
+dest12:		reloc is simm12 		[ reloc = inst_start + 4 + (simm12<<1); ] { export *[ram]:4 reloc; }
+dest8_2: 	reloc is simm8 	[ reloc = inst_start + 4 + (simm8 <<2); ] { export *[ram]:4 reloc; }
+rndest:  	reloc is Rn 		[ reloc = inst_start + 4 + Rn; ] { export *[ram]:4 reloc; }
+udest8_2: 	reloc is imm8 	[ reloc = inst_start + 4 + (imm8 <<2); ] { export *[ram]:4 reloc; }
+#udest8_2w: 	reloc is imm8 	[ reloc = inst_start + 4 + (imm8 <<2); ] { export *[ram]:4 reloc; }
 
 :MOV      "#"^imm8, Rn			is quad0=0xE & imm8 & Rn { 
 	Rn = sext(imm8:2); }
 
-# TODO: PC RELATIVE MOVE 
-	#:MOV.W	@(disp8, PC), RN	is quad0=9 & disp8 & Rn { }
-	#:MOV.L  @(disp8, PC), RN   	is quad0=0xd { }
-	#:MOVA	  @(disp4, PC), R10  is quad0=C & quad1=7 & disp4 & PC & R0 { }
+:MOV.W	"@"^udest8_2, Rn	is quad0=9 & udest8_2 & Rn  { Rn = zext( *[ram]:2 udest8_2  ); }
+:MOV.L  "@"^dest8_2, Rn   	is quad0=0xd & Rn & dest8_2 {  Rn = *dest8_2; }
+:MOVA	  "@"^udest8_2, R0  is quad0=0xC & quad1=7 & udest8_2 & R0 { R0= udest8_2; }
+
 
 :MOV	  Rm2, Rn			is quad0=6 & quad3=3 & Rm2 & Rn   { Rn = Rm2; }
 # :MOV.^SZ Rm2, @Rn
@@ -149,7 +156,7 @@ cc: "EQ" is quad3 = 0 {  }
 :MOV.B  @Rm2, Rn          	is quad0=6 & mode=0 & msize=0 & Rm2 & Rn  { Rn = sext( *[ram]:1 Rm2); }
 :MOV.W  @Rm2, Rn          	is quad0=6 & mode=0 & msize=1 & Rm2 & Rn  { Rn = sext( *[ram]:2 Rm2); }
 :MOV.L  @Rm2, Rn          	is quad0=6 & mode=0 & msize=2 & Rm2 & Rn  { Rn = *[ram]:4 Rm2; }
-# MOV.^SZ Rm, @-Rn
+#MOV.^SZ Rm, @-Rn
 :MOV.B  Rm2, @-Rn 			is quad0=2 & mode=1 & msize=0 & Rm2 & Rn {
    addr = Rn -1;
    *[ram]:1 addr = Rm2:1;
@@ -444,4 +451,137 @@ COMP2OP: "GT"			 	is quad3 = 7 & Rm2 & Rn { setTFlag( (Rn  s> Rm2) ); }
 	*[ram]:2 tmpaddr = zext(value) ^ zext(imm8:2);
 } 
 
+######################
+# Shift instructions #
+######################
+:ROTL 	Rn 					is quad0=4 & quad2=0 & quad3=4 & Rn {
+	local t = zext(Rn[31,1]);
+	Rn = Rn <<1 | t;
+	setTFlag( t );
+}
+:ROTR 	Rn 					is quad0=4 & quad2=0 & quad3=5 & Rn {
+	local t = zext(Rn[0,1]);
+	Rn = (Rn >> 1) | (t << 31);
+	setTFlag(t);
+}
+:ROTCL 	Rn 					is quad0=4 & quad2=2 & quad3=4 & Rn {
+	local t = zext( $(T_flag) );
+	local t2 = Rn[31,1];
+	Rn = Rn <<1 | t;
+	setTFlag( t2 );
+}
+:ROTCR 	Rn 					is quad0=4 & quad2=2 & quad3=5 & Rn {
+	local oldt  = zext( $(T_flag) );
+	local t     = Rn[0,1]; 
+	Rn = (Rn >> 1) | (oldt << 31);
+	setTFlag( t );
+}
+# TODO: SHAD, SHLD
+:SHAD 	Rm2, Rn 			is quad0=4 & quad3=0xC & Rm2 & Rn {
+}
+:SHLD 	Rm2, Rn 			is quad0=4 & quad3=0xd & Rm2 & Rn {
+}
 
+:SHAL  	Rn 					is quad0=4 & quad2=2 & quad3=0 & Rn {
+	setTFlag( Rn[31,1] );
+	Rn = Rn << 1;
+} 
+:SHAR  	Rn 					is quad0=4 & quad2=2 & quad3=1 & Rn {
+	setTFlag( Rn[0,1] );
+	Rn = Rn >> 1;
+} 
+:SHLL  	Rn 					is quad0=4 & quad2=0 & quad3=0 & Rn {
+	setTFlag( Rn[31,1] );
+	Rn = Rn << 1;	
+ }
+:SHLR  	Rn 					is quad0=4 & quad2=0 & quad3=1 & Rn { 
+	setTFlag( Rn[0,1] );
+	Rn = Rn >> 1;
+}
+:SHLL2  Rn 					is quad0=4 & quad2=0 & quad3=8 & Rn { Rn = Rn << 2; }
+:SHLR2  Rn 					is quad0=4 & quad2=0 & quad3=9 & Rn { Rn = Rn >> 2;}
+:SHLL8  Rn 					is quad0=4 & quad2=1 & quad3=8 & Rn { Rn = Rn << 8; }
+:SHLR8  Rn 					is quad0=4 & quad2=1 & quad3=9 & Rn { Rn = Rn >> 8;}
+:SHLL16	Rn 					is quad0=4 & quad2=2 & quad3=8 & Rn { Rn = Rn << 16; }
+:SHLR16	Rn 					is quad0=4 & quad2=2 & quad3=9 & Rn { Rn = Rn >> 16;}
+
+#######################
+# Branch instructions #
+#######################
+#rel8: reloc is simm8        [ reloc=inst_next+simm8; ] { export *[ram]:$(SIZE) reloc; }
+#rel16: reloc is simm16      [ reloc=((inst_next >> 16) << 16) | ((inst_next + simm16) & 0xFFFF); ] { export *[ram]:$(SIZE) reloc; }
+#rel32: reloc is simm32      [ reloc=inst_next+simm32; ] { export *[ram]:$(SIZE) reloc; }
+
+#rndest2: reloc is Rn        [ reloc = Rn; ] { export *[ram]:4 reloc; }
+
+:BF 	dest8 				is quad0=8 & quad1=0xB & dest8 {
+	#delayslot(1);
+	if($(T_flag) == 0) goto dest8;
+}
+
+:BF^"/S" dest8 				is quad0=8 & quad1=0xF & dest8 {
+	delayslot(1);
+	if($(T_flag) == 0) goto dest8;
+}
+
+:BT  	dest8 				is quad0=8 & quad1=9 & dest8 {
+	if($(T_flag) == 1) goto dest8;
+}
+:BT^"/S" dest8 				is quad0=8 & quad1=0xD & dest8 {
+	delayslot(1);
+	if($(T_flag) == 1) goto dest8;
+}
+:BRA 	dest12 			is quad0=0xa & dest12 {
+	delayslot(1);
+	goto dest12;
+}
+:BRAF 	rndest 			is quad0=0x0 & quad2=2 & quad3=3 & rndest  {
+	delayslot(1);
+	goto rndest;
+}
+:BSR 	dest12 			is quad0=0xB & dest12 {
+	delayslot(1);
+	PR = inst_start + 4;
+	call dest12;
+}
+:BSRF 	rndest 			is quad0=0x0 & quad2=0 & quad3=3 & rndest {
+	delayslot(1);
+	PR = inst_start + 4;
+	call rndest;
+}
+
+:JMP   Rn 				is quad0=0x4 & quad2=2 & quad3=0xB & Rn  {
+	delayslot(1);
+	goto Rn;
+}
+:JSR   Rn 				is quad0=0x4 & quad2=0 & quad3=0xB & Rn  {
+	delayslot(1);
+	call Rn;
+}
+:RTS  					is quad0=0 & quad1=0 & quad2=0 & quad3=0xB  {
+	delayslot(1);
+	return [PR];
+}
+
+ctrReg: MACH 		is quad2=0 & MACH { export MACH; }
+ctrReg: MACL 		is quad2=1 & MACL { export MACL; }
+ctrReg: PR 			is quad2=2 & PR { export PR; }
+
+
+################################
+# System control instructions  #
+################################
+:NOP 					is quad0=0 & quad1=0 & quad2=0 & quad3=9 { }
+:STS 	ctrReg, Rn 			is quad0=0 & quad3=0xA & ctrReg & Rn { Rn = ctrReg; }
+
+:STS.L 	ctrReg, @-Rn 		is quad0=4 & quad3=2 & ctrReg & Rn {
+	tmpaddr = Rn -4;
+	*[ram]:4 tmpaddr = ctrReg;
+	Rn = tmpaddr;
+}
+:LDS 	Rm, ctrReg 			is quad0=4 & quad3=0xA & ctrReg & Rm { ctrReg=Rm; }
+:LDS.L  @Rm+, ctrReg 		is quad0=4 & quad3=6   & ctrReg & Rm {
+	tmp = *Rm;
+	Rm= Rm + 4;
+	ctrReg = tmp;
+}

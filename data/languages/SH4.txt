@@ -32,6 +32,9 @@ In Ghidra open the script manager ("Window" -> "Script Manager") and add key-bin
 
 In Ghidra enable PCode display by clicking the "Edit the Listing fields" icon at the top of the Listing view, right clicking "PCode" and clicking "Enable Field" (you may wish to toggle this on-and-off during reversing as it is quite verbose).
 
+Another helpful one is:
+   
+
 
 =-=-=-=-=-=-=-
 =- Branch:  =-
@@ -52,6 +55,16 @@ instruction access, the MD bit is used before modification, and in data access, 
 MD bit is accessed after modification. The other bits S, T, M, Q, FD, BL, and RB
 after modification are used for delay slot instruction execution. The STC and STC.L
 SR instructions access all SR bits after modification.
+
+In a delayed branch, the instruction following the branch is executed before the branch destination instruction. This execution slot following a delayed branch is called a delay slot. For example, the BRA execution sequence is as follows:
+
+BRA TARGET BRA TARGET
+ADD next_2 R1, R0 ADD
+target_instr R1, R0
+
+ADD in delay slot is executed
+before branching to TARGET
+
 
 Constant:
   8, 16 & 32 bit
@@ -213,6 +226,24 @@ vselcond: "vs"
 	{ Sd = zext(vselcond != 0) * Sn + zext(vselcond == 0) * Sm; }
 
 
+
+=-=-=-=-=-=-=-=-
+=- OPTIMIZING =-
+=-=-=-=-=-=-=-=-
+
+:LDS 	Rm, PR 			is quad0=4 & quad2=2 & quad3=0xA & PR & Rm { PR=Rm; }
+:LDS 	Rm, MACH 		is quad0=4 & quad2=0 & quad3=0xA & MACH & Rm { MACH=Rm; }
+:LDS 	Rm, MACL 		is quad0=4 & quad2=1 & quad3=0xA & MACL & Rm { MACL=Rm; }
+
+Could be replaced with:
+----------------------
+ctrReg: MACH 		is quad2=0 & MACH { export MACH; }
+ctrReg: MACL 		is quad2=1 & MACL { export MACL; }
+ctrReg: PR 			is quad2=2 & PR { export PR; }
+
+:LDS 	Rm, ctrReg 			is quad0=4 & quad3=0xA & ctrReg & Rm { ctrReg=Rm; }
+
+And Later used with STS or other :D
 
 
 =-=-=-=-=-=-=-
@@ -421,3 +452,22 @@ cc: "le" is cond=13         { tmp:1 = ZR || (NG!=OV); export tmp; }
 
 COND: cc is $(AMODE) &  cc		      { if (!cc) goto inst_next; }   # Execute conditionally
 COND:    is $(AMODE) &  cond=14	  { }			     # Always execute
+
+
+
+BRAF
+pc ← SignExtend 32 (PC);
+op1 ← SignExtend 32 (R n );
+IF (IsDelaySlot())
+THROW ILLSLOT;
+target ← ZeroExtend 32 (pc + 4 + op1);
+delayedpc ← target ∧ (~ 0x1);
+PC’’ ← Register(delayedpc);
+
+
+op1 ← SignExtend 32 (R n );
+IF (IsDelaySlot())
+THROW ILLSLOT;
+target ← op1;
+delayedpc ← target ∧ (~ 0x1);
+PC’’ ← Register(delayedpc);

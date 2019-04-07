@@ -5,13 +5,13 @@
 <language_definitions>
 <!-- Uncomment the following to make the language available in Ghidra -->
    <language processor="SH4"
-            endian="big"
+            endian="little"
             size="32"
             variant="default"
             version="1.0"
             slafile="sh4.sla"
             processorspec="sh4.pspec"
-            id="sh4:BE:32:default">
+            id="sh4:LE:32:default">
     <description>SH4 Hitachi Processor</description>
     <compiler name="default" spec="sh4.cspec" id="default"/>
   </language> 
